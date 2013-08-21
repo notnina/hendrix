@@ -14,11 +14,11 @@ try:
     PORT = int(sys.argv[2])
     WSGI = imp.load_source('wsgi', sys.argv[1])
 except IndexError:
-    exit("usage: devserver.py <wsgi_module> <PORT>")
+    exit("usage: hendrix-devserver.py <wsgi_module> <PORT>")
 
-wsgi = WSGI.get_wsgi_handler('local')
+wsgi_application = WSGI.application
 
-resource, server = get_hendrix_resource(wsgi, DEPLOYMENT_TYPE, port=PORT)
+resource, server = get_hendrix_resource(wsgi_application, DEPLOYMENT_TYPE, port=PORT)
 
 try:
     server.startService()

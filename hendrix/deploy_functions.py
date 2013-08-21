@@ -1,6 +1,6 @@
 import sys, os, logging
 
-from raven.contrib.django.raven_compat.middleware.wsgi import Sentry
+#from raven.contrib.django.raven_compat.middleware.wsgi import Sentry
 
 from twisted.web.wsgi import WSGIResource
 from twisted.python.threadpool import ThreadPool
@@ -57,7 +57,7 @@ class MediaService(static.File):
         return ForbiddenResource()
 
 
-def get_hendrix_resource(wsgi_handler, deployment_type, port, logger=DEFAULT_LOGGER):
+def get_hendrix_resource(wsgi_application, deployment_type, port, logger=DEFAULT_LOGGER):
     '''
     Pseudo factory that returns the proper Resource object.
     Takes a deployment type and (for development) a port number.
@@ -79,28 +79,28 @@ def get_hendrix_resource(wsgi_handler, deployment_type, port, logger=DEFAULT_LOG
     # Use django's WSGIHandler to create the resource.
     hendrix_django_resource = WSGIResource(
         reactor, tps.pool,
-        wsgi_handler,
+        wsgi_application,
     )
     root = Root(hendrix_django_resource)
 
     # Now we need to handle static media.
     # Servce Django media files off of /media:
-
+    '''
     if deployment_type == "local":
         admin_static = MediaService(os.path.join(os.path.abspath("."), DEVELOPMENT_ADMIN_MEDIA))
-        staticrsrc = MediaService(os.path.join(os.path.abspath("."), "%s/static" % wsgi_handler.application.project_root)) # TODO: Unhardcode /static
+        staticrsrc = MediaService(os.path.abspath(".")
     else:
-        # Maybe we want to hardcode production and staging paths.  Maybe we don't.
+         Maybe we want to hardcode production and staging paths.  Maybe we don't.
         admin_static = MediaService(os.path.join(os.path.abspath("."), DEVELOPMENT_ADMIN_MEDIA))
-        staticrsrc = MediaService(os.path.join(os.path.abspath("."), "%s/static" % wsgi_handler.application.project_root))
+        staticrsrc = MediaService(os.path.abspath(".")
 
     logger.debug("Adding admin static path: %s" % admin_static)
-    # Now that we have the static media locations, add them to the root.
+     Now that we have the static media locations, add them to the root.
     root.putChild("static_admin", admin_static)
     
     logger.debug("Adding static path: %s" % staticrsrc)
     root.putChild("static", staticrsrc)
-
+    '''
     main_site = server.Site(root)
     internet.TCPServer(port, main_site).setServiceParent(hendrix_server)
 
