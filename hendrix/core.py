@@ -11,16 +11,16 @@ class HendrixResource(WSGIResource):
 
     def __init__(self, application, settings_module=None,
     port=80, additional_handlers=None):
-        super(Hendrix_Resource, self).__init__()
+
         sslcontext = ssl.DefaultOpenSSLContextFactory(
-            settings_module.path_to_private_key,
-            settings_module.path_to_server_certificate
+            settings_module.PATH_TO_PRIVATE_KEY,
+            settings_module.PATH_TO_SERVER_CERTIFICATE,
         )
 
-        hendrix_reactor = self.reactor
+        hendrix_reactor = reactor
         hendrix_reactor.listenSSL(
-            self.port,
-            self.application,
+            port,
+            application,
             sslcontext,
         )
         # Create and start a thread pool,
@@ -30,11 +30,11 @@ class HendrixResource(WSGIResource):
         hendrix_reactor.addSystemEventTrigger('after', 'shutdown', self.threads.stop)
 
         root = Root(self)
-        if self.settings_module is not None:
+        if settings_module is not None:
             static_resource = MediaResource(self.settings_module.STATIC_ROOT)
             root.putChild(self.settings_module.STATIC_URL.strip('/'), static_resource)
 
-        if self.additional_handlers:
+        if additional_handlers:
             # additional_handlers should be a list of tuples like: ('/namespace/chat', <chathandler object>)
             for path,handler in self.additional_handlers:
                 root.putChild(path, handler)
@@ -57,7 +57,7 @@ def encapsulate(HendrixResource):
     tcp_service.setServiceParent(hendrix_server)
 
 
-        return hendrix_resource, hendrix_server
+    return hendrix_resource, hendrix_server
 
 
 def threadPoolService(reactor=reactor):
