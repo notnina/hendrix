@@ -4,7 +4,7 @@ import importlib
 import argparse
 
 from hendrix import import_wsgi
-from hendrix.core import get_hendrix_resource
+from hendrix.core import HendrixResource, encapsulate
 
 from twisted.internet import reactor
 from twisted.internet.error import CannotListenError
@@ -71,8 +71,10 @@ if hasattr(settings_module, 'HENDRIX_CHILD_HANDLERS'):
         #
 
         additional_handlers.append(('%s-%s'%(namespace,url_path), getattr(handler_module, handler_generator)()))
-    
-resource, server = get_hendrix_resource(wsgi, settings_module, port=PORT, additional_handlers=additional_handlers)
+
+data = HendrixResource(wsgi, settings_module,
+port=PORT, additional_handlers=additional_handlers)
+resource, server = encapsulate(data)
 
 try:
     server.startService()

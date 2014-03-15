@@ -1,48 +1,63 @@
 from twisted.application import internet, service
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl
 from twisted.python.threadpool import ThreadPool
 from twisted.web import server, resource, static
 from twisted.web.wsgi import WSGIResource
 from twisted.web.resource import ForbiddenResource
 
 
-def get_hendrix_resource(application, settings_module=None, port=80, additional_handlers=None):
+
+class HendrixResource(WSGIResource):
+
+    def __init__(self, application, settings_module=None,
+    port=80, additional_handlers=None):
+        super(Hendrix_Resource, self).__init__()
+        sslcontext = ssl.DefaultOpenSSLContextFactory(
+            settings_module.path_to_private_key,
+            settings_module.path_to_server_certificate
+        )
+
+        hendrix_reactor = self.reactor
+        hendrix_reactor.listenSSL(
+            self.port,
+            self.application,
+            sslcontext,
+        )
+        # Create and start a thread pool,
+        self.threads = ThreadPool()
+
+        # The pool will stop when the reactor shuts down
+        hendrix_reactor.addSystemEventTrigger('after', 'shutdown', self.threads.stop)
+
+        root = Root(self)
+        if self.settings_module is not None:
+            static_resource = MediaResource(self.settings_module.STATIC_ROOT)
+            root.putChild(self.settings_module.STATIC_URL.strip('/'), static_resource)
+
+        if self.additional_handlers:
+            # additional_handlers should be a list of tuples like: ('/namespace/chat', <chathandler object>)
+            for path,handler in self.additional_handlers:
+                root.putChild(path, handler)
+                print 'child handler %r listening at /%s'%(handler, path)
+
+def encapsulate(HendrixResource):
     '''
     Pseudo factory that returns the proper Resource object.
     Takes a deployment type and (for development) a port number.
     Returns a tuple (Twisted Resource, Twisted Service)
     '''
-    # Create and start a thread pool,
-    threads = ThreadPool()
 
-    # The pool will stop when the reactor shuts down
-    reactor.addSystemEventTrigger('after', 'shutdown', threads.stop)
-
+    hendrix_resource = HendrixResource
     hendrix_server = service.MultiService()
+    main_site = hendrix_server.Site(HendrixResource.root)
 
-    # Use django's WSGIHandler to create the resource.
-    hendrix_resource = WSGIResource(reactor, threads, application)
-    root = Root(hendrix_resource)
-    if settings_module is not None:
-        static_resource = MediaResource(settings_module.STATIC_ROOT)
-        root.putChild(settings_module.STATIC_URL.strip('/'), static_resource)
-    
-    if additional_handlers:
-        # additional_handlers should be a list of tuples like: ('/namespace/chat', <chathandler object>)
-        for path,handler in additional_handlers:
-            root.putChild(path, handler)
-            print 'child handler %r listening at /%s'%(handler, path)
-
-    main_site = server.Site(root)
-
-    tcp_service = internet.TCPServer(port, main_site)
-    threads_service = ThreadPoolService(threads)
-
+    tcp_service = internet.TCPServer(HendrixResource.port, main_site)
+    threads_service = ThreadPoolService(HendrixResource.threads)
     threads_service.setServiceParent(hendrix_server)
     tcp_service.setServiceParent(hendrix_server)
 
 
-    return hendrix_resource, hendrix_server
+        return hendrix_resource, hendrix_server
 
 
 def threadPoolService(reactor=reactor):
