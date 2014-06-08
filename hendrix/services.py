@@ -1,10 +1,9 @@
-import sys
 import importlib
 from .resources import HendrixResource
 from twisted.application import internet, service
-from twisted.internet import reactor, protocol
+from twisted.internet import reactor
 from twisted.python.threadpool import ThreadPool
-from twisted.web import server, resource, static
+from twisted.web import server
 
 import logging
 
@@ -15,12 +14,14 @@ class HendrixService(service.MultiService):
     """
     HendrixService is a constructor that facilitates the collection of services
     and the extension of resources on the website by subclassing MultiService.
-    'application' refers to an instance of django.core.handlers.wsgi.WSGIHandler
-    'resources' refers to a list of twisted Resources with a namespace attribute
+    'application' refers to a django.core.handlers.wsgi.WSGIHandler
+    'resources' refers to a list of Resources with a namespace attribute
     'services' refers to a list of twisted Services to add to the collection.
     """
 
-    def __init__(self, application, port=80, resources=None, services=None):
+    def __init__(
+            self, application, port=80, resources=None, services=None,
+            loud=False):
         service.MultiService.__init__(self)
 
         # Create, start and add a thread pool service, which is made available
@@ -30,27 +31,33 @@ class HendrixService(service.MultiService):
         ThreadPoolService(threads).setServiceParent(self)
 
         # create the base resource and add any additional static resources
-        resource = HendrixResource(reactor, threads, application)
+        resource = HendrixResource(reactor, threads, application, loud=loud)
         if resources:
+            resources = sorted(resources, key=lambda r: r.namespace)
             for res in resources:
                 resource.putNamedChild(res)
 
-
-        self.factory = server.Site(resource)
+        factory = server.Site(resource)
         # add a tcp server that binds to port=port
-        self.tcp_service = internet.TCPServer(port, self.factory)
-        self.tcp_service.setServiceParent(self)
+        main_web_tcp = TCPServer(port, factory)
+        main_web_tcp.setName('main_web_tcp')
+        # to get this at runtime use
+        # hedrix_service.getServiceNamed('main_web_tcp')
+        main_web_tcp.setServiceParent(self)
 
         # add any additional services
         if services:
-            for srv in services:
+            for srv_name, srv in services:
+                srv.setName(srv_name)
                 srv.setServiceParent(self)
 
-    @property
-    def tcp_port(self):
+    def get_port(self, name):
         "Return the port object associated to our tcp server"
-        return self.services[1]._port
+        service = self.getServiceNamed(name)
+        return service._port
 
+    def add_server(self, name, protocol, server):
+        self.servers[(name, protocol)] = server
 
 
 class ThreadPoolService(service.Service):
@@ -84,16 +91,24 @@ def get_additional_services(settings_module):
         example:
 
             HENDRIX_SERVICES = (
-              'apps.offload.services.TimeService',
+              ('myServiceName', 'apps.offload.services.TimeService'),
             )
     """
 
     additional_services = []
 
     if hasattr(settings_module, 'HENDRIX_SERVICES'):
-        for module_path in settings_module.HENDRIX_SERVICES:
+        for name, module_path in settings_module.HENDRIX_SERVICES:
             path_to_module, service_name = module_path.rsplit('.', 1)
             resource_module = importlib.import_module(path_to_module)
-
-            additional_services.append(getattr(resource_module, service_name))
+            additional_services.append(
+                (name, getattr(resource_module, service_name))
+            )
     return additional_services
+
+
+class TCPServer(internet.TCPServer):
+
+    def __init__(self, port, factory, *args, **kwargs):
+        internet.TCPServer.__init__(self, port, factory, *args, **kwargs)
+        self.factory = factory

@@ -9,3 +9,6 @@ hendrix/pids
 *~
 .DS_Store
 *.pid
+venv
+_trial_temp*
+ignore*
