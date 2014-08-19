@@ -12,4 +12,3 @@ hendrix/pids
 venv
 _trial_temp*
 ignore*
-*.log

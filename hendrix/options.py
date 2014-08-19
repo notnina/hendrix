@@ -1,6 +1,5 @@
-import os
-
 from hendrix import defaults
+
 from optparse import make_option, OptionParser
 
 
@@ -49,16 +48,6 @@ HX_OPTION_LIST = (
             'The Python path to a settings module, e.g. "myproj.settings.x".'
             ' If this isn\'t provided, the DJANGO_SETTINGS_MODULE environment '
             'variable will be used.'
-        )
-    ),
-    make_option(
-        '--log',
-        dest='log',
-        type=str,
-        default=os.path.join(os.path.dirname(__file__), 'hendrix.log'),
-        help=(
-            'file path to where the log files should live '
-            '[default: $PYTHON_PATH/lib/.../hendrix/hendrix.log]'
         )
     ),
     make_option(
