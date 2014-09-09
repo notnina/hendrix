@@ -10,7 +10,7 @@ from sys import executable
 from socket import AF_INET
 
 from hendrix import defaults
-from hendrix.contrib import ssl
+
 from hendrix.contrib.services.cache import CacheService
 from hendrix.options import options as hx_options
 from hendrix.resources import get_additional_resources
@@ -18,8 +18,6 @@ from hendrix.services import get_additional_services, HendrixService
 from hendrix.utils import get_pid
 from twisted.application.internet import TCPServer, SSLServer
 from twisted.internet import reactor
-from twisted.internet.ssl import PrivateCertificate
-from twisted.protocols.tls import TLSMemoryBIOFactory
 
 
 class HendrixDeploy(object):
@@ -28,7 +26,7 @@ class HendrixDeploy(object):
     HendrixService on a single or multiple processes.
     """
 
-    def __init__(self, action='start', options={}, reactor=reactor):
+    def __init__(self, action='start', options={}, reactor=reactor, wsgi_app=None):
         self.action = action
         self.options = hx_options()
         self.options.update(options)
@@ -36,19 +34,26 @@ class HendrixDeploy(object):
         self.resources = []
         self.reactor = reactor
 
-        self.use_settings = True
+        self.use_settings = False
+
         # because running the management command overrides self.options['wsgi']
-        if self.options['wsgi']:
+        if wsgi_app:
+            self.application = wsgi_app
+            self.options['wsgi'] = wsgi_app.__class__.__name__
+        elif self.options['wsgi']:
             wsgi_dot_path = self.options['wsgi']
             self.application = HendrixDeploy.importWSGI(wsgi_dot_path)
-            self.use_settings = False
         else:
+            # I don't love the idea that "use settings" or "don't use settings"
+            # is tied to the matter of whether a wsgi app is supplied.
+
             os.environ['DJANGO_SETTINGS_MODULE'] = self.options['settings']
             django_conf = importlib.import_module('django.conf')
             settings = getattr(django_conf, 'settings')
             self.services = get_additional_services(settings)
             self.resources = get_additional_resources(settings)
             self.options = HendrixDeploy.getConf(settings, self.options)
+            self.use_settings = True
 
         if self.use_settings:
             wsgi_dot_path = getattr(settings, 'WSGI_APPLICATION', None)
